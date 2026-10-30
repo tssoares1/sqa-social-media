@@ -7,6 +7,7 @@ const post: Post = {
   title: "Título do post",
   body: "Conteúdo do post",
   liked: false,
+  reactions: { likes: 192, dislikes: 25 },
 };
 
 describe("components/PostCard", () => {
@@ -25,6 +26,13 @@ describe("components/PostCard", () => {
 
     expect(screen.getByRole("heading", { name: "Título do post" })).toBeTruthy();
     expect(screen.getByText("Conteúdo do post")).toBeTruthy();
+  });
+
+  test("exibe o número de curtidas e descurtidas do post", () => {
+    render(<PostCard post={post} isAuthenticated={false} onLike={jest.fn()} />);
+
+    expect(screen.getByTitle("Curtidas").textContent).toBe("👍 192");
+    expect(screen.getByTitle("Descurtidas").textContent).toBe("👎 25");
   });
 
   test("exibe 'Curtido' quando o post já foi curtido", () => {

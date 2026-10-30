@@ -18,6 +18,7 @@ function makePosts(count: number, startId = 1): Post[] {
     title: `Post ${startId + i}`,
     body: `Conteúdo ${startId + i}`,
     liked: false,
+    reactions: { likes: (startId + i) * 10, dislikes: startId + i },
   }));
 }
 
@@ -46,6 +47,22 @@ describe("app/Home", () => {
     expect(await screen.findAllByRole("listitem")).toHaveLength(2);
     expect(screen.getByText("Post 1")).toBeTruthy();
     expect(screen.getByText("Você chegou ao fim dos posts!")).toBeTruthy();
+  });
+
+  test("exibe curtidas e descurtidas junto a cada post", async () => {
+    mockedPostsService.getPosts.mockResolvedValueOnce(mockResponse(makePosts(2)));
+
+    renderHome();
+
+    await screen.findAllByRole("listitem");
+    expect(screen.getAllByTitle("Curtidas").map((el) => el.textContent)).toEqual([
+      "👍 10",
+      "👍 20",
+    ]);
+    expect(screen.getAllByTitle("Descurtidas").map((el) => el.textContent)).toEqual([
+      "👎 1",
+      "👎 2",
+    ]);
   });
 
   test("carrega a próxima página ao clicar em 'Carregar mais'", async () => {
