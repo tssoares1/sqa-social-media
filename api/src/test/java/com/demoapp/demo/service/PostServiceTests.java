@@ -79,6 +79,34 @@ class PostServiceTests {
   }
 
   @Test
+  @DisplayName("getPosts expõe as reações (likes/dislikes) do DummyJSON em cada post")
+  @SuppressWarnings("unchecked")
+  void deveExporReacoesDosPosts() {
+    when(restTemplate.getForObject("https://dummyjson.com/posts?limit=2&skip=0", String.class))
+        .thenReturn(POSTS_JSON);
+
+    Map<String, Object> result = postService.getPosts(2, 0, null);
+
+    List<Map<String, Object>> posts = (List<Map<String, Object>>) result.get("posts");
+    assertEquals(Map.of("likes", 192, "dislikes", 25), posts.get(0).get("reactions"));
+    assertEquals(Map.of("likes", 7, "dislikes", 0), posts.get(1).get("reactions"));
+  }
+
+  @Test
+  @DisplayName("getPosts usa 0 likes/dislikes quando o post não possui reactions")
+  @SuppressWarnings("unchecked")
+  void deveUsarZeroQuandoPostNaoTemReacoes() {
+    when(restTemplate.getForObject("https://dummyjson.com/posts", String.class)).thenReturn("""
+        { "posts": [ { "id": 1, "title": "Post 1", "body": "Body 1" } ], "total": 1, "skip": 0, "limit": 1 }
+        """);
+
+    Map<String, Object> result = postService.getPosts(null, null, null);
+
+    List<Map<String, Object>> posts = (List<Map<String, Object>>) result.get("posts");
+    assertEquals(Map.of("likes", 0, "dislikes", 0), posts.get(0).get("reactions"));
+  }
+
+  @Test
   @DisplayName("getPosts sem userId não consulta curtidas e retorna todos como não curtidos")
   @SuppressWarnings("unchecked")
   void deveBuscarPostsSemUsuario() {
@@ -115,6 +143,7 @@ class PostServiceTests {
     List<Map<String, Object>> posts = (List<Map<String, Object>>) result.get("posts");
     assertEquals(List.of(5L, 8L), posts.stream().map(p -> p.get("id")).toList());
     assertTrue(posts.stream().allMatch(p -> (Boolean) p.get("liked")));
+    assertEquals(Map.of("likes", 1, "dislikes", 2), posts.get(0).get("reactions"));
     assertEquals(3, result.get("total"));
     verify(restTemplate, never()).getForObject("https://dummyjson.com/posts/3", String.class);
   }
