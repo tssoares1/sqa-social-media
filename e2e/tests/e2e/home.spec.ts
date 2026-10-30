@@ -1,6 +1,28 @@
 import { test, expect } from "@playwright/test";
+import { API_URL } from "../helpers";
 
 test.describe("E2E - HOME", () => {
+  test("exibe curtidas e descurtidas junto a cada post", async ({ page, request }) => {
+    const { posts } = await (
+      await request.get(`${API_URL}/posts`, { params: { limit: 10, skip: 0 } })
+    ).json();
+
+    await page.goto("/");
+    const cards = page.getByRole("listitem");
+    await expect(cards).toHaveCount(posts.length);
+
+    for (const [i, post] of posts.entries()) {
+      const card = cards.nth(i);
+      await expect(card.getByRole("heading")).toHaveText(post.title);
+      await expect(card.getByTitle("Curtidas", { exact: true })).toHaveText(
+        `👍 ${post.reactions.likes}`
+      );
+      await expect(card.getByTitle("Descurtidas", { exact: true })).toHaveText(
+        `👎 ${post.reactions.dislikes}`
+      );
+    }
+  });
+
   test("exibe o feed com 10 posts e carrega mais ao clicar em 'Carregar mais'", async ({ page }) => {
     await page.goto("/");
 
