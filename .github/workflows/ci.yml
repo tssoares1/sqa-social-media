@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+
+jobs:
+  api-tests:
+    name: API - testes de unidade e integração (JUnit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Executar testes (banco H2 em memória)
+        run: ./mvnw -B test
+
+  client-tests:
+    name: Client - lint, tipos e testes de unidade (Jest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Checagem de tipos
+        run: npx tsc --noEmit
+
+      - name: Executar testes
+        run: npm test
+
+  e2e-tests:
+    name: API e E2E - caixa-preta (Playwright)
+    needs: [api-tests, client-tests]
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: sqa_social_media
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/sqa_social_media
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      NEXT_PUBLIC_BASE_URL: http://localhost:8080
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            client/package-lock.json
+            e2e/package-lock.json
+
+      - name: Build da API
+        working-directory: api
+        run: ./mvnw -B -DskipTests package
+
+      - name: Instalar dependências do client
+        working-directory: client
+        run: npm ci
+
+      - name: Instalar Playwright e navegador
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Iniciar API (Spring Boot + MySQL)
+        run: |
+          nohup java -jar api/target/demo-0.0.1-SNAPSHOT.jar > api.log 2>&1 &
+          curl --retry 60 --retry-delay 2 --retry-all-errors -sf -o /dev/null "http://localhost:8080/posts?limit=1"
+
+      - name: Iniciar client (Next.js)
+        working-directory: client
+        run: |
+          npm run build
+          nohup npm start > ../client.log 2>&1 &
+          curl --retry 30 --retry-delay 2 --retry-all-errors -sf -o /dev/null http://localhost:3000
+
+      - name: Executar testes de API e E2E
+        working-directory: e2e
+        run: npm test
+
+      - name: Publicar relatório e logs em caso de falha
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-report
+          path: |
+            e2e/playwright-report/
+            api.log
+            client.log
