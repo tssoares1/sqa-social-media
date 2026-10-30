@@ -21,6 +21,19 @@ test.describe("API - POSTS", () => {
     );
   });
 
+  test("GET /posts retorna as reactions (likes/dislikes) de cada post iguais às do DummyJSON", async ({
+    request,
+  }) => {
+    const ours = await (await request.get("/posts", { params: { limit: 5, skip: 0 } })).json();
+    const dummy = await (
+      await request.get("https://dummyjson.com/posts", { params: { limit: 5, skip: 0 } })
+    ).json();
+
+    expect(ours.posts.map((p: { id: number; reactions: object }) => [p.id, p.reactions])).toEqual(
+      dummy.posts.map((p: { id: number; reactions: object }) => [p.id, p.reactions])
+    );
+  });
+
   test("curtir e descurtir um post reflete em /posts e /posts/liked", async ({ request }) => {
     const user = await createUser(request);
 

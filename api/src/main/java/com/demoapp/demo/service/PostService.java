@@ -54,15 +54,7 @@ public class PostService {
       JsonNode postsArray = rootNode.get("posts");
       
       for (JsonNode postNode : postsArray) {
-        Map<String, Object> post = new HashMap<>();
-        Long postId = postNode.get("id").asLong();
-        
-        post.put("id", postId);
-        post.put("title", postNode.get("title").asText());
-        post.put("body", postNode.get("body").asText());
-        post.put("liked", likedPostIds.contains(postId));
-        
-        posts.add(post);
+        posts.add(toPost(postNode, likedPostIds.contains(postNode.get("id").asLong())));
       }
 
       Map<String, Object> result = new HashMap<>();
@@ -101,15 +93,7 @@ public class PostService {
       for (Long postId : paginatedIds) {
         String url = "https://dummyjson.com/posts/" + postId;
         String response = restTemplate.getForObject(url, String.class);
-        JsonNode postNode = objectMapper.readTree(response);
-        
-        Map<String, Object> post = new HashMap<>();
-        post.put("id", postNode.get("id").asLong());
-        post.put("title", postNode.get("title").asText());
-        post.put("body", postNode.get("body").asText());
-        post.put("liked", true);
-        
-        posts.add(post);
+        posts.add(toPost(objectMapper.readTree(response), true));
       }
 
       Map<String, Object> result = new HashMap<>();
@@ -123,6 +107,21 @@ public class PostService {
     } catch (Exception e) {
       throw new RuntimeException("Erro ao buscar posts curtidos: " + e.getMessage(), e);
     }
+  }
+
+  private Map<String, Object> toPost(JsonNode postNode, boolean liked) {
+    JsonNode reactions = postNode.path("reactions");
+
+    Map<String, Object> post = new HashMap<>();
+    post.put("id", postNode.get("id").asLong());
+    post.put("title", postNode.get("title").asText());
+    post.put("body", postNode.get("body").asText());
+    post.put("liked", liked);
+    post.put("reactions", Map.of(
+        "likes", reactions.path("likes").asInt(),
+        "dislikes", reactions.path("dislikes").asInt()));
+
+    return post;
   }
 
   public Map<String, Object> toggleLike(Long postId, Long userId) {
