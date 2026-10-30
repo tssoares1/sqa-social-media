@@ -1,0 +1,31 @@
+# Ambiente local sem precisar instalar Java/MySQL: sobe o banco e a API em http://localhost:8080
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: sqa_social_media
+      MYSQL_ROOT_PASSWORD: root
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-proot"]
+      interval: 5s
+      retries: 20
+
+  api:
+    image: maven:3.9-eclipse-temurin-17
+    working_dir: /app
+    command: mvn -B spring-boot:run
+    volumes:
+      - ./api:/app
+      - m2:/root/.m2
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/sqa_social_media
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  m2:
